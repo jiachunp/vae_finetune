@@ -18,7 +18,6 @@ class AudioProcessor:
         wav2vec_model_path,
         audio_separator_model_file,
         sample_rate,
-        fps,
         num_frames,
         device,
     ):
@@ -41,11 +40,10 @@ class AudioProcessor:
 
         self.output_dir = output_dir
         self.sample_rate = sample_rate
-        self.fps = fps
         self.num_frames = num_frames
         self.device = device
 
-    def get_audio_embedding_from_video(self, input_path):
+    def get_audio_embedding_from_video(self, input_path, video_length):
         speech_array, sr = librosa.load(input_path.as_posix(), sr=self.sample_rate)
 
         if self.audio_separator is not None:
@@ -69,22 +67,16 @@ class AudioProcessor:
                 # speech_array = y_resampled
         
         audio_feature = np.squeeze(self.wav2vec_feature_extractor(speech_array, sampling_rate=self.sample_rate).input_values)
-        seq_len = math.ceil(len(audio_feature) / self.sample_rate * self.fps)
         audio_feature = torch.from_numpy(audio_feature).float().to(device=self.device)
-        if seq_len % self.num_frames != 0:
-            audio_feature = torch.nn.functional.pad(audio_feature, (0, (self.num_frames - seq_len % self.num_frames) * (self.sample_rate // self.fps)), 'constant', 0.0)
-            seq_len += self.num_frames - seq_len % self.num_frames
         audio_feature = audio_feature.unsqueeze(0)
-
         with torch.no_grad():
-            embeddings = self.audio_encoder(audio_feature, seq_len=seq_len, output_hidden_states=True)
+            embeddings = self.audio_encoder(audio_feature, seq_len=video_length, output_hidden_states=True)
 
         if len(embeddings) == 0:
             print("Fail to extract audio embedding")
             return None
 
-        audio_emb = torch.stack(
-            embeddings.hidden_states[1:], dim=1).squeeze(0)
+        audio_emb = torch.stack(embeddings.hidden_states[1:], dim=1).squeeze(0)
         audio_emb = rearrange(audio_emb, "b s d -> s b d")
 
         audio_emb = audio_emb.cpu().detach()

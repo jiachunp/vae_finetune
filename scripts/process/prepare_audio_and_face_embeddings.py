@@ -15,13 +15,13 @@ def process_video(
     audio_processor,
 ):
     # prepare image embdeding
-    face_emb = video_processor.get_face_embedding_from_video(input_path)
+    face_emb, video_length = video_processor.get_face_embedding_from_video(input_path)
     if face_emb is None:
         print("Fail to extract face embedding")
         return None, None
 
     # prepare audio embedding
-    audio_emb = audio_processor.get_audio_embedding_from_video(input_path)
+    audio_emb = audio_processor.get_audio_embedding_from_video(input_path, video_length)
     if audio_emb is None:
         print("Fail to extract audio embedding")
         return None, None
@@ -42,7 +42,6 @@ def main():
     parser.add_argument("--wav2vec_model_path", type=str, default="pretrained_models/wav2vec/wav2vec2-base-960h", help="Path to the wav2vec model")
     parser.add_argument("--audio_separator_model_file", type=str, default=None, help="Path to the audio separator model file")
     parser.add_argument("--sample_rate", type=int, default=16000, help="Sample rate for audio processing")
-    parser.add_argument("--fps", type=int, default=25, help="Frames per second for audio processing")
     parser.add_argument("--num_frames", type=int, default=16, help="Number of frames for audio processing")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to run the processing on")
 
@@ -55,14 +54,12 @@ def main():
         subdir_path = output_dir / subdir_name
         subdir_path.mkdir(parents=True, exist_ok=True)
 
-
     video_processor = VideoProcessor(args.face_analysis_model_path)
     audio_processor = AudioProcessor(
         output_dir,
         args.wav2vec_model_path,
         args.audio_separator_model_file,
         sample_rate=args.sample_rate,
-        fps=args.fps,
         num_frames=args.num_frames,
         device=args.device,
     )

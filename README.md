@@ -272,57 +272,20 @@ w/ audio separator:
 python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF --audio_separator_model_file pretrained_models/audio_separator/Kim_Vocal_2.onnx
 ```
 
-### Training
+### Video Training
 
-Update the data meta path settings in the configuration YAML files, `configs/train/stage1.yaml` and `configs/train/stage2.yaml`:
-
-
-```yaml
-#stage1.yaml
-data:
-  meta_paths:
-    - ./data/dataset_name_stage1.json
-
-#stage2.yaml
-data:
-  meta_paths:
-    - ./data/dataset_name_stage2.json
-```
-
-Start training with the following command:
-
-```shell
-accelerate launch -m \
-  --config_file accelerate_config.yaml \
+```bash
+accelerate launch \
+  --config_file configs/train/accelerate_config.yaml \
   --machine_rank 0 \
   --main_process_ip 0.0.0.0 \
   --main_process_port 20055 \
-  --num_machines 1 \
-  --num_processes 8 \
-  scripts.train_stage1 --config ./configs/train/stage1.yaml
+  scripts/train/train_video.py --config configs/train/train_video.yaml
 ```
 
-#### Accelerate Usage Explanation
-
-The `accelerate launch` command is used to start the training process with distributed settings.
-
-```shell
-accelerate launch [arguments] {training_script} --{training_script-argument-1} --{training_script-argument-2} ...
-```
-
-**Arguments for Accelerate:**
-
-- `-m, --module`: Interpret the launch script as a Python module.
 - `--config_file`: Configuration file for Hugging Face Accelerate.
 - `--machine_rank`: Rank of the current machine in a multi-node setup.
 - `--main_process_ip`: IP address of the master node.
 - `--main_process_port`: Port of the master node.
-- `--num_machines`: Total number of nodes participating in the training.
-- `--num_processes`: Total number of processes for training, matching the total number of GPUs across all machines.
-
-**Arguments for Training:**
-
-- `{training_script}`: The training script, such as `scripts.train_stage1` or `scripts.train_stage2`.
-- `--{training_script-argument-1}`: Arguments specific to the training script. Our training scripts accept one argument, `--config`, to specify the training configuration file.
 
 For multi-node training, you need to manually run the command with different `machine_rank` on each node separately.
