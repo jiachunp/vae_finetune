@@ -13,11 +13,11 @@ class VideoProcessor:
         self.face_analysis.prepare(ctx_id=0, det_size=(640, 640))
 
     def get_face_embedding_from_video(self, input_path):
-        video_reader = VideoReader(input_path.as_posix())
-        face_emb = None
-        for i in range(len(video_reader)):
-            frame = video_reader[i].asnumpy()
-            try:
+        try:
+            video_reader = VideoReader(input_path.as_posix())
+            face_emb = None
+            for i in range(len(video_reader)):
+                frame = video_reader[i].asnumpy()
                 # detect face
                 faces = self.face_analysis.get(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
                 assert len(faces) == 1, "Only one face should be detected"
@@ -25,9 +25,10 @@ class VideoProcessor:
                 face_emb = faces[0]["embedding"]
                 if face_emb is not None:
                     break
-            except Exception:
-                continue
+        except Exception:
+            if "video_reader" in locals():
+                del video_reader
+            return None
         
         del video_reader
-
         return face_emb

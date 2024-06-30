@@ -68,26 +68,35 @@ def main():
     )
 
     # process videos
-    metadata = []
+    metadata_path = output_dir / "metadata.jsonl"
+    processed_videos = []
+    if metadata_path.exists():
+        for line in metadata_path.read_text().splitlines():
+            metadata = json.loads(line)
+            processed_videos.append(Path(metadata["video"]))
+
     input_video_paths = [file for file in Path(args.input_dir).rglob('*.mp4')]
     for input_path in tqdm(input_video_paths, desc="Processing videos"):
         if not input_path.exists():
             print(f"Video path {input_path} does not exist")
             continue
+        if input_path in processed_videos:
+            print(f"Video {input_path} has already been processed")
+            continue
 
         face_emb_path, audio_emb_path = process_video(input_path, output_dir, video_processor, audio_processor)
         if face_emb_path is not None and audio_emb_path is not None:
-            metadata.append({
+            processed_videos.append(input_path)
+            # save metadata to jsonl
+            metadata = {
                 "video": str(input_path),
                 "face_emb": str(face_emb_path),
                 "audio_emb": str(audio_emb_path),
-            })
+            }
+            with open(metadata_path, "a") as f:
+                f.write(json.dumps(metadata) + "\n")
 
-    # save metadata to jsonl
-    metadata_path = output_dir / "metadata.jsonl"
-    with open(metadata_path, "w") as f:
-        for item in metadata:
-            f.write(json.dumps(item) + "\n")
+    print(f"Saved {len(processed_videos)} embeddings to {metadata_path}")
 
 
 if __name__ == "__main__":

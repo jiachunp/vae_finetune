@@ -61,11 +61,12 @@ class AudioProcessor:
             if len(outputs) <= 0:
                 print("Audio separate failed. Using raw audio.")
             else:
-                # resample the vocal to the desired sample rate
-                vocal_path = self.output_dir / "vocal" / f"{input_path.stem}-16k.wav"
-                y, sr = librosa.load(str(input_audio_file), sr=None)
-                y_resampled = librosa.resample(y, orig_sr=sr, target_sr=self.sample_rate)
-                speech_array = y_resampled
+                pass
+                # # resample the vocal to the desired sample rate
+                # vocal_path = self.output_dir / "vocal" / f"{input_path.stem}-16k.wav"
+                # y, sr = librosa.load(str(input_audio_file), sr=None)
+                # y_resampled = librosa.resample(y, orig_sr=sr, target_sr=self.sample_rate)
+                # speech_array = y_resampled
         
         audio_feature = np.squeeze(self.wav2vec_feature_extractor(speech_array, sampling_rate=self.sample_rate).input_values)
         seq_len = math.ceil(len(audio_feature) / self.sample_rate * self.fps)
