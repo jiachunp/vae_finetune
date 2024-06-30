@@ -9,6 +9,10 @@ pip install -r requirements.txt
 pip install -e .
 apt-get install ffmpeg
 pip install ffmpeg-python
+
+# # for faster face & audio embedding
+# pip uninstall onnxruntime
+# pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/  # for cuda12
 ```
 
 ## Download Datasets
@@ -72,6 +76,44 @@ cat vox2_dev_mp4* > vox2_mp4.zip
 unzip vox2_mp4.zip
 ```
 
+## Download Models
+
+```bash
+apt update
+apt install aria2
+apt install git-lfs
+git lfs install
+chmod a+x ./scripts/download/hfd.sh
+export HF_ENDPOINT=https://hf-mirror.com
+./scripts/download/hfd.sh facebook/wav2vec2-base-960h --local-dir /mnt/data/public/ckpt/wav2vec2-base-960h --tool aria2c -x 4
+./scripts/download/hfd.sh stabilityai/sd-vae-ft-mse --local-dir /mnt/data/public/ckpt/sd-vae-ft-mse --tool aria2c -x 4
+# ./scripts/download/hfd.sh lambdalabs/sd-image-variations-diffusers --local-dir /mnt/data/public/ckpt/sd-image-variations-diffusers --tool aria2c -x 4
+./scripts/download/hfd.sh runwayml/stable-diffusion-v1-5 --local-dir /mnt/data/public/ckpt/stable-diffusion-v1-5 --tool aria2c -x 4
+# ./scripts/download/hfd.sh guoyww/animatediff --local-dir /mnt/data/public/ckpt/guoyww--animatediff --tool aria2c -x 4
+# ./scripts/download/hfd.sh openai/clip-vit-large-patch14 --local-dir /mnt/data/public/ckpt/openai--clip-vit-large-patch14 --tool aria2c -x 4
+# ./scripts/download/hfd.sh stabilityai/stable-video-diffusion-img2vid-xt --local-dir /mnt/data/public/ckpt/stabilityai--stable-video-diffusion-img2vid-xt --tool aria2c -x 4
+# ./scripts/download/hfd.sh guoyww/animatediff-motion-adapter-v1-5-2 --local-dir /mnt/data/public/ckpt/animatediff-motion-adapter-v1-5-2 --tool aria2c -x 4
+# ./scripts/download/hfd.sh fudan-generative-ai/hallo --local-dir /mnt/data/public/ckpt/hallo --tool aria2c -x 4
+# python download.py --model stabilityai/stable-diffusion-xl-base-1.0 --save_dir /mnt/data/public/ckpt/stable-diffusion-xl-base-1.0
+```
+
+Create symbolic links:
+
+```bash
+# ln -s /mnt/data/public/ckpt/lambdalabs--sd-image-variations-diffusers/image_encoder /mnt/data/longtaozheng/talking_head/checkpoints
+# ln -s /mnt/data/public/ckpt/clip-vit-large-patch14-image_encoder/ /mnt/data/longtaozheng/talking_head/checkpoints/image_encoder
+# ln -s /mnt/data/public/ckpt/clip-vit-large-patch14-image_encoder_with_projection/ /mnt/data/longtaozheng/talking_head/checkpoints/image_encoder
+# ln -s /mnt/data/public/ckpt/stabilityai--sd-vae-ft-mse/ /mnt/data/longtaozheng/talking_head/checkpoints/vae
+# ln -s /mnt/data/public/ckpt/runwayml--stable-diffusion-v1-5/vae /mnt/data/longtaozheng/talking_head/checkpoints
+# ln -s /mnt/data/public/ckpt/runwayml--stable-diffusion-v1-5/unet /mnt/data/longtaozheng/talking_head/checkpoints
+# ln -s /mnt/data/public/ckpt/runwayml--stable-diffusion-v1-5/scheduler /mnt/data/longtaozheng/talking_head/checkpoints
+# ln -s /mnt/data/public/ckpt/runwayml--stable-diffusion-v1-5/feature_extractor /mnt/data/longtaozheng/talking_head/checkpoints
+# ln -s /mnt/data/public/ckpt/runwayml--stable-diffusion-v1-5/safety_checker /mnt/data/longtaozheng/talking_head/checkpoints
+# ln -s /mnt/data/public/ckpt/animatediff-motion-adapter-v1-5-2 /mnt/data/longtaozheng/talking_head/checkpoints/motion_adapter
+
+ln -s /mnt/data/public/ckpt/wav2vec2-base-960h /mnt/data/longtaozheng/talking-head/pretrained_models/wav2vec
+```
+
 ## Post-Download Checks
 
 ```bash
@@ -121,8 +163,7 @@ Length of raw videos before processing:
 - VFHQ: 729:13:04 (2503 videos, 1.2T, full version without audio 2.9T)
 - CelebV-HQ: 615:32:52 (9290 videos, 576G)
 - TalkingHead-1KH (train): 1289:19:28 (2576 videos, 1.7T)
-
-- Voxceleb: 1114:52:35 (545598 videos, 714G)
+- Voxceleb: 2236:26:29 (1092009 clips, 714G)
 
 ## Data Processing
 
@@ -159,15 +200,14 @@ python scripts/download/calculate_durations.py /mnt/data/public/dataset/talking_
 python scripts/download/calculate_durations.py /mnt/data/public/dataset/talking_head/video_datasets/VFHQ
 python scripts/download/calculate_durations.py /mnt/data/public/dataset/talking_head/video_datasets/CelebV-HQ
 python scripts/download/calculate_durations.py /mnt/data/public/dataset/talking_head/video_datasets/talkinghead_1kh
-python scripts/download/calculate_durations.py /mnt/data/public/dataset/talking_head/raw_data/voxceleb
+python scripts/download/calculate_durations.py /mnt/data/public/dataset/talking_head/raw_data/voxceleb/vox2/dev/mp4
 ```
 
 - HDTF: 14:18:58 (354 clips, 4.7G)
 - VFHQ: 15:19:01 (6764 videos, 15G)
 - CelebV-HQ: 46:09:48 (28252 clips, 23G)
 - TalkingHead-1KH (train): 534:49:12 (445964 clips, 144G)
-
-- Voxceleb: (, 714G)
+- Voxceleb: 2236:26:29 (1092009 clips, 714G)
 
 Manually examination:
 
@@ -218,20 +258,19 @@ video_datasets/
     └-- [video files].mp4
 ```
 
-Process the videos with the following commands:
+Process the videos and generate metadata jsons:
+
+w/o audio separator:
 
 ```bash
-python scripts/data_preprocess --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF
+python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF
 ```
 
-Generate the metadata JSON files with the following commands:
+w/ audio separator:
 
 ```bash
-python scripts/extract_meta_info_stage1.py -r path/to/dataset -n dataset_name
-python scripts/extract_meta_info_stage2.py -r path/to/dataset -n dataset_name
+python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF --audio_separator_model_file pretrained_models/audio_separator/Kim_Vocal_2.onnx
 ```
-
-Replace `path/to/dataset` with the path to the parent directory of `videos`, such as `dataset_name` in the example above. This will generate `dataset_name_stage1.json` and `dataset_name_stage2.json` in the `./data` directory.
 
 ### Training
 
