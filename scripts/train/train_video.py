@@ -1,26 +1,5 @@
-# pylint: disable=E1101,C0415,W0718,R0801
-# scripts/train_stage2.py
-"""
-This is the main training script for stage 2 of the project. 
-It imports necessary packages, defines necessary classes and functions, and trains the model using the provided configuration.
-
-The script includes the following classes and functions:
-
-1. Net: A PyTorch model that takes noisy latents, timesteps, reference image latents, face embeddings, 
-   and face masks as input and returns the denoised latents.
-2. get_attention_mask: A function that rearranges the mask tensors to the required format.
-3. get_noise_scheduler: A function that creates and returns the noise schedulers for training and validation.
-4. process_audio_emb: A function that processes the audio embeddings to concatenate with other tensors.
-5. log_validation: A function that logs the validation information using the given VAE, image encoder, 
-   network, scheduler, accelerator, width, height, and configuration.
-6. train_stage2_process: A function that processes the training stage 2 using the given configuration.
-7. load_config: A function that loads the configuration file from the given path.
-
-The script also includes the necessary imports and a brief description of the purpose of the file.
-"""
-
 import argparse
-import copy
+# import copy
 import logging
 import math
 import os
@@ -48,10 +27,10 @@ from omegaconf import OmegaConf
 from torch import nn
 from tqdm.auto import tqdm
 
-from talking_head.animate.face_animate import FaceAnimatePipeline
-from talking_head.datasets.audio_processor import AudioProcessor
-from talking_head.datasets.image_processor import ImageProcessor
-from talking_head.datasets.talk_video import TalkingVideoDataset
+# from talking_head.animate.face_animate import FaceAnimatePipeline
+# from talking_head.datasets.audio_processor import AudioProcessor
+# from talking_head.datasets.image_processor import ImageProcessor
+from talking_head.datasets.video_dataset import VideoDataset
 from talking_head.models.audio_proj import AudioProjModel
 from talking_head.models.face_locator import FaceLocator
 from talking_head.models.image_proj import ImageProjModel
@@ -105,7 +84,6 @@ class Net(nn.Module):
         self,
         reference_unet: UNet2DConditionModel,
         denoising_unet: UNet3DConditionModel,
-        face_locator: FaceLocator,
         reference_control_writer,
         reference_control_reader,
         imageproj,
@@ -114,7 +92,6 @@ class Net(nn.Module):
         super().__init__()
         self.reference_unet = reference_unet
         self.denoising_unet = denoising_unet
-        self.face_locator = face_locator
         self.reference_control_writer = reference_control_writer
         self.reference_control_reader = reference_control_reader
         self.imageproj = imageproj
@@ -127,10 +104,6 @@ class Net(nn.Module):
         ref_image_latents: torch.Tensor,
         face_emb: torch.Tensor,
         audio_emb: torch.Tensor,
-        mask: torch.Tensor,
-        full_mask: torch.Tensor,
-        face_mask: torch.Tensor,
-        lip_mask: torch.Tensor,
         uncond_img_fwd: bool = False,
         uncond_audio_fwd: bool = False,
     ):
@@ -138,10 +111,7 @@ class Net(nn.Module):
         simple docstring to prevent pylint error
         """
         face_emb = self.imageproj(face_emb)
-        mask = mask.to(device="cuda")
-        mask_feature = self.face_locator(mask)
-        audio_emb = audio_emb.to(
-            device=self.audioproj.device, dtype=self.audioproj.dtype)
+        audio_emb = audio_emb.to(device=self.audioproj.device, dtype=self.audioproj.dtype)
         audio_emb = self.audioproj(audio_emb)
 
         # condition forward
@@ -168,12 +138,8 @@ class Net(nn.Module):
         model_pred = self.denoising_unet(
             noisy_latents,
             timesteps,
-            mask_cond_fea=mask_feature,
             encoder_hidden_states=face_emb,
             audio_embedding=audio_emb,
-            full_mask=full_mask,
-            face_mask=face_mask,
-            lip_mask=lip_mask
         ).sample
 
         return model_pred
@@ -247,178 +213,178 @@ def process_audio_emb(audio_emb: torch.Tensor) -> torch.Tensor:
     return audio_emb
 
 
-def log_validation(
-    accelerator: Accelerator,
-    vae: AutoencoderKL,
-    net: Net,
-    scheduler: DDIMScheduler,
-    width: int,
-    height: int,
-    clip_length: int = 24,
-    generator: torch.Generator = None,
-    cfg: dict = None,
-    save_dir: str = None,
-    global_step: int = 0,
-    times: int = None,
-    face_analysis_model_path: str = "",
-) -> None:
-    """
-    Log validation video during the training process.
+# def log_validation(
+#     accelerator: Accelerator,
+#     vae: AutoencoderKL,
+#     net: Net,
+#     scheduler: DDIMScheduler,
+#     width: int,
+#     height: int,
+#     clip_length: int = 24,
+#     generator: torch.Generator = None,
+#     cfg: dict = None,
+#     save_dir: str = None,
+#     global_step: int = 0,
+#     times: int = None,
+#     face_analysis_model_path: str = "",
+# ) -> None:
+#     """
+#     Log validation video during the training process.
 
-    Args:
-        accelerator (Accelerator): The accelerator for distributed training.
-        vae (AutoencoderKL): The autoencoder model.
-        net (Net): The main neural network model.
-        scheduler (DDIMScheduler): The scheduler for noise.
-        width (int): The width of the input images.
-        height (int): The height of the input images.
-        clip_length (int): The length of the video clips. Defaults to 24.
-        generator (torch.Generator): The random number generator. Defaults to None.
-        cfg (dict): The configuration dictionary. Defaults to None.
-        save_dir (str): The directory to save validation results. Defaults to None.
-        global_step (int): The current global step in training. Defaults to 0.
-        times (int): The number of inference times. Defaults to None.
-        face_analysis_model_path (str): The path to the face analysis model. Defaults to "".
+#     Args:
+#         accelerator (Accelerator): The accelerator for distributed training.
+#         vae (AutoencoderKL): The autoencoder model.
+#         net (Net): The main neural network model.
+#         scheduler (DDIMScheduler): The scheduler for noise.
+#         width (int): The width of the input images.
+#         height (int): The height of the input images.
+#         clip_length (int): The length of the video clips. Defaults to 24.
+#         generator (torch.Generator): The random number generator. Defaults to None.
+#         cfg (dict): The configuration dictionary. Defaults to None.
+#         save_dir (str): The directory to save validation results. Defaults to None.
+#         global_step (int): The current global step in training. Defaults to 0.
+#         times (int): The number of inference times. Defaults to None.
+#         face_analysis_model_path (str): The path to the face analysis model. Defaults to "".
 
-    Returns:
-        torch.Tensor: The tensor result of the validation.
-    """
-    ori_net = accelerator.unwrap_model(net)
-    reference_unet = ori_net.reference_unet
-    denoising_unet = ori_net.denoising_unet
-    face_locator = ori_net.face_locator
-    imageproj = ori_net.imageproj
-    audioproj = ori_net.audioproj
+#     Returns:
+#         torch.Tensor: The tensor result of the validation.
+#     """
+#     ori_net = accelerator.unwrap_model(net)
+#     reference_unet = ori_net.reference_unet
+#     denoising_unet = ori_net.denoising_unet
+#     face_locator = ori_net.face_locator
+#     imageproj = ori_net.imageproj
+#     audioproj = ori_net.audioproj
 
-    generator = torch.manual_seed(42)
-    tmp_denoising_unet = copy.deepcopy(denoising_unet)
+#     generator = torch.manual_seed(42)
+#     tmp_denoising_unet = copy.deepcopy(denoising_unet)
 
-    pipeline = FaceAnimatePipeline(
-        vae=vae,
-        reference_unet=reference_unet,
-        denoising_unet=tmp_denoising_unet,
-        face_locator=face_locator,
-        image_proj=imageproj,
-        scheduler=scheduler,
-    )
-    pipeline = pipeline.to("cuda")
+#     pipeline = FaceAnimatePipeline(
+#         vae=vae,
+#         reference_unet=reference_unet,
+#         denoising_unet=tmp_denoising_unet,
+#         face_locator=face_locator,
+#         image_proj=imageproj,
+#         scheduler=scheduler,
+#     )
+#     pipeline = pipeline.to("cuda")
 
-    image_processor = ImageProcessor((width, height), face_analysis_model_path)
-    audio_processor = AudioProcessor(
-        cfg.data.sample_rate,
-        cfg.data.fps,
-        cfg.wav2vec_config.model_path,
-        cfg.wav2vec_config.features == "last",
-        os.path.dirname(cfg.audio_separator.model_path),
-        os.path.basename(cfg.audio_separator.model_path),
-        os.path.join(save_dir, '.cache', "audio_preprocess")
-    )
+#     image_processor = ImageProcessor((width, height), face_analysis_model_path)
+#     audio_processor = AudioProcessor(
+#         cfg.data.sample_rate,
+#         cfg.data.fps,
+#         cfg.wav2vec_config.model_path,
+#         cfg.wav2vec_config.features == "last",
+#         os.path.dirname(cfg.audio_separator.model_path),
+#         os.path.basename(cfg.audio_separator.model_path),
+#         os.path.join(save_dir, '.cache', "audio_preprocess")
+#     )
 
-    for idx, ref_img_path in enumerate(cfg.ref_img_path):
-        audio_path = cfg.audio_path[idx]
-        source_image_pixels, \
-        source_image_face_region, \
-        source_image_face_emb, \
-        source_image_full_mask, \
-        source_image_face_mask, \
-        source_image_lip_mask = image_processor.preprocess(
-            ref_img_path, os.path.join(save_dir, '.cache'), cfg.face_expand_ratio)
-        audio_emb, audio_length = audio_processor.preprocess(
-            audio_path, clip_length)
+#     for idx, ref_img_path in enumerate(cfg.ref_img_path):
+#         audio_path = cfg.audio_path[idx]
+#         source_image_pixels, \
+#         source_image_face_region, \
+#         source_image_face_emb, \
+#         source_image_full_mask, \
+#         source_image_face_mask, \
+#         source_image_lip_mask = image_processor.preprocess(
+#             ref_img_path, os.path.join(save_dir, '.cache'), cfg.face_expand_ratio)
+#         audio_emb, audio_length = audio_processor.preprocess(
+#             audio_path, clip_length)
 
-        audio_emb = process_audio_emb(audio_emb)
+#         audio_emb = process_audio_emb(audio_emb)
 
-        source_image_pixels = source_image_pixels.unsqueeze(0)
-        source_image_face_region = source_image_face_region.unsqueeze(0)
-        source_image_face_emb = source_image_face_emb.reshape(1, -1)
-        source_image_face_emb = torch.tensor(source_image_face_emb)
+#         source_image_pixels = source_image_pixels.unsqueeze(0)
+#         source_image_face_region = source_image_face_region.unsqueeze(0)
+#         source_image_face_emb = source_image_face_emb.reshape(1, -1)
+#         source_image_face_emb = torch.tensor(source_image_face_emb)
 
-        source_image_full_mask = [
-            (mask.repeat(clip_length, 1))
-            for mask in source_image_full_mask
-        ]
-        source_image_face_mask = [
-            (mask.repeat(clip_length, 1))
-            for mask in source_image_face_mask
-        ]
-        source_image_lip_mask = [
-            (mask.repeat(clip_length, 1))
-            for mask in source_image_lip_mask
-        ]
+#         source_image_full_mask = [
+#             (mask.repeat(clip_length, 1))
+#             for mask in source_image_full_mask
+#         ]
+#         source_image_face_mask = [
+#             (mask.repeat(clip_length, 1))
+#             for mask in source_image_face_mask
+#         ]
+#         source_image_lip_mask = [
+#             (mask.repeat(clip_length, 1))
+#             for mask in source_image_lip_mask
+#         ]
 
-        times = audio_emb.shape[0] // clip_length
-        tensor_result = []
-        generator = torch.manual_seed(42)
-        for t in range(times):
-            print(f"[{t+1}/{times}]")
+#         times = audio_emb.shape[0] // clip_length
+#         tensor_result = []
+#         generator = torch.manual_seed(42)
+#         for t in range(times):
+#             print(f"[{t+1}/{times}]")
 
-            if len(tensor_result) == 0:
-                # The first iteration
-                motion_zeros = source_image_pixels.repeat(
-                    cfg.data.n_motion_frames, 1, 1, 1)
-                motion_zeros = motion_zeros.to(
-                    dtype=source_image_pixels.dtype, device=source_image_pixels.device)
-                pixel_values_ref_img = torch.cat(
-                    [source_image_pixels, motion_zeros], dim=0)  # concat the ref image and the first motion frames
-            else:
-                motion_frames = tensor_result[-1][0]
-                motion_frames = motion_frames.permute(1, 0, 2, 3)
-                motion_frames = motion_frames[0 - cfg.data.n_motion_frames:]
-                motion_frames = motion_frames * 2.0 - 1.0
-                motion_frames = motion_frames.to(
-                    dtype=source_image_pixels.dtype, device=source_image_pixels.device)
-                pixel_values_ref_img = torch.cat(
-                    [source_image_pixels, motion_frames], dim=0)  # concat the ref image and the motion frames
+#             if len(tensor_result) == 0:
+#                 # The first iteration
+#                 motion_zeros = source_image_pixels.repeat(
+#                     cfg.data.n_motion_frames, 1, 1, 1)
+#                 motion_zeros = motion_zeros.to(
+#                     dtype=source_image_pixels.dtype, device=source_image_pixels.device)
+#                 pixel_values_ref_img = torch.cat(
+#                     [source_image_pixels, motion_zeros], dim=0)  # concat the ref image and the first motion frames
+#             else:
+#                 motion_frames = tensor_result[-1][0]
+#                 motion_frames = motion_frames.permute(1, 0, 2, 3)
+#                 motion_frames = motion_frames[0 - cfg.data.n_motion_frames:]
+#                 motion_frames = motion_frames * 2.0 - 1.0
+#                 motion_frames = motion_frames.to(
+#                     dtype=source_image_pixels.dtype, device=source_image_pixels.device)
+#                 pixel_values_ref_img = torch.cat(
+#                     [source_image_pixels, motion_frames], dim=0)  # concat the ref image and the motion frames
 
-            pixel_values_ref_img = pixel_values_ref_img.unsqueeze(0)
+#             pixel_values_ref_img = pixel_values_ref_img.unsqueeze(0)
 
-            audio_tensor = audio_emb[
-                t * clip_length: min((t + 1) * clip_length, audio_emb.shape[0])
-            ]
-            audio_tensor = audio_tensor.unsqueeze(0)
-            audio_tensor = audio_tensor.to(
-                device=audioproj.device, dtype=audioproj.dtype)
-            audio_tensor = audioproj(audio_tensor)
+#             audio_tensor = audio_emb[
+#                 t * clip_length: min((t + 1) * clip_length, audio_emb.shape[0])
+#             ]
+#             audio_tensor = audio_tensor.unsqueeze(0)
+#             audio_tensor = audio_tensor.to(
+#                 device=audioproj.device, dtype=audioproj.dtype)
+#             audio_tensor = audioproj(audio_tensor)
 
-            pipeline_output = pipeline(
-                ref_image=pixel_values_ref_img,
-                audio_tensor=audio_tensor,
-                face_emb=source_image_face_emb,
-                face_mask=source_image_face_region,
-                pixel_values_full_mask=source_image_full_mask,
-                pixel_values_face_mask=source_image_face_mask,
-                pixel_values_lip_mask=source_image_lip_mask,
-                width=cfg.data.train_width,
-                height=cfg.data.train_height,
-                video_length=clip_length,
-                num_inference_steps=cfg.inference_steps,
-                guidance_scale=cfg.cfg_scale,
-                generator=generator,
-            )
+#             pipeline_output = pipeline(
+#                 ref_image=pixel_values_ref_img,
+#                 audio_tensor=audio_tensor,
+#                 face_emb=source_image_face_emb,
+#                 face_mask=source_image_face_region,
+#                 pixel_values_full_mask=source_image_full_mask,
+#                 pixel_values_face_mask=source_image_face_mask,
+#                 pixel_values_lip_mask=source_image_lip_mask,
+#                 width=cfg.data.train_width,
+#                 height=cfg.data.train_height,
+#                 video_length=clip_length,
+#                 num_inference_steps=cfg.inference_steps,
+#                 guidance_scale=cfg.cfg_scale,
+#                 generator=generator,
+#             )
 
-            tensor_result.append(pipeline_output.videos)
+#             tensor_result.append(pipeline_output.videos)
 
-        tensor_result = torch.cat(tensor_result, dim=2)
-        tensor_result = tensor_result.squeeze(0)
-        tensor_result = tensor_result[:, :audio_length]
-        audio_name = os.path.basename(audio_path).split('.')[0]
-        ref_name = os.path.basename(ref_img_path).split('.')[0]
-        output_file = os.path.join(save_dir,f"{global_step}_{ref_name}_{audio_name}.mp4")
-        # save the result after all iteration
-        tensor_to_video(tensor_result, output_file, audio_path)
-
-
-    # clean up
-    del tmp_denoising_unet
-    del pipeline
-    del image_processor
-    del audio_processor
-    torch.cuda.empty_cache()
-
-    return tensor_result
+#         tensor_result = torch.cat(tensor_result, dim=2)
+#         tensor_result = tensor_result.squeeze(0)
+#         tensor_result = tensor_result[:, :audio_length]
+#         audio_name = os.path.basename(audio_path).split('.')[0]
+#         ref_name = os.path.basename(ref_img_path).split('.')[0]
+#         output_file = os.path.join(save_dir,f"{global_step}_{ref_name}_{audio_name}.mp4")
+#         # save the result after all iteration
+#         tensor_to_video(tensor_result, output_file, audio_path)
 
 
-def train_stage2_process(cfg: argparse.Namespace) -> None:
+#     # clean up
+#     del tmp_denoising_unet
+#     del pipeline
+#     del image_processor
+#     del audio_processor
+#     torch.cuda.empty_cache()
+
+#     return tensor_result
+
+
+def train(cfg: argparse.Namespace) -> None:
     """
     Trains the model using the given configuration (cfg).
 
@@ -501,9 +467,6 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
         clip_embeddings_dim=512,
         clip_extra_context_tokens=4,
     ).to(device="cuda", dtype=weight_dtype)
-    face_locator = FaceLocator(
-        conditioning_embedding_channels=320,
-    ).to(device="cuda", dtype=weight_dtype)
     audioproj = AudioProjModel(
         seq_len=5,
         blocks=12,
@@ -513,43 +476,11 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
         context_tokens=32,
     ).to(device="cuda", dtype=weight_dtype)
 
-    # load module weight from stage 1
-    stage1_ckpt_dir = cfg.stage1_ckpt_dir
-    denoising_unet.load_state_dict(
-        torch.load(
-            os.path.join(stage1_ckpt_dir, "denoising_unet.pth"),
-            map_location="cpu",
-        ),
-        strict=False,
-    )
-    reference_unet.load_state_dict(
-        torch.load(
-            os.path.join(stage1_ckpt_dir, "reference_unet.pth"),
-            map_location="cpu",
-        ),
-        strict=False,
-    )
-    face_locator.load_state_dict(
-        torch.load(
-            os.path.join(stage1_ckpt_dir, "face_locator.pth"),
-            map_location="cpu",
-        ),
-        strict=False,
-    )
-    imageproj.load_state_dict(
-        torch.load(
-            os.path.join(stage1_ckpt_dir, "imageproj.pth"),
-            map_location="cpu",
-        ),
-        strict=False,
-    )
-
     # Freeze
     vae.requires_grad_(False)
     imageproj.requires_grad_(False)
     reference_unet.requires_grad_(False)
     denoising_unet.requires_grad_(False)
-    face_locator.requires_grad_(False)
     audioproj.requires_grad_(True)
 
     # Set motion module learnable
@@ -575,7 +506,6 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
     net = Net(
         reference_unet,
         denoising_unet,
-        face_locator,
         reference_control_writer,
         reference_control_reader,
         imageproj,
@@ -643,17 +573,16 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
     )
 
     # get data loader
-    train_dataset = TalkingVideoDataset(
+    train_dataset = VideoDataset(
+        n_motion_frames=cfg.data.n_motion_frames,
+        n_sample_frames=cfg.data.n_sample_frames,
         img_size=(cfg.data.train_width, cfg.data.train_height),
         sample_rate=cfg.data.sample_rate,
-        n_sample_frames=cfg.data.n_sample_frames,
-        n_motion_frames=cfg.data.n_motion_frames,
         audio_margin=cfg.data.audio_margin,
-        data_meta_paths=cfg.data.train_meta_paths,
-        wav2vec_cfg=cfg.wav2vec_config,
+        metadata_paths=cfg.data.metadata_paths,
     )
     train_dataloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=cfg.data.train_bs, shuffle=True, num_workers=16
+        train_dataset, batch_size=cfg.data.train_bs, shuffle=True, num_workers=16, pin_memory=True
     )
 
     # Prepare everything with our `accelerator`.
@@ -737,27 +666,14 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
             t_data = time.time() - t_data_start
             with accelerator.accumulate(net):
                 # Convert videos to latent space
-                pixel_values_vid = batch["pixel_values_vid"].to(weight_dtype)
-
-                pixel_values_face_mask = batch["pixel_values_face_mask"]
-                pixel_values_face_mask = get_attention_mask(
-                    pixel_values_face_mask, weight_dtype
-                )
-                pixel_values_lip_mask = batch["pixel_values_lip_mask"]
-                pixel_values_lip_mask = get_attention_mask(
-                    pixel_values_lip_mask, weight_dtype
-                )
-                pixel_values_full_mask = batch["pixel_values_full_mask"]
-                pixel_values_full_mask = get_attention_mask(
-                    pixel_values_full_mask, weight_dtype
-                )
+                pixel_values = batch["pixel_values"].to(weight_dtype)
 
                 with torch.no_grad():
-                    video_length = pixel_values_vid.shape[1]
-                    pixel_values_vid = rearrange(
-                        pixel_values_vid, "b f c h w -> (b f) c h w"
+                    video_length = pixel_values.shape[1]
+                    pixel_values = rearrange(
+                        pixel_values, "b f c h w -> (b f) c h w"
                     )
-                    latents = vae.encode(pixel_values_vid).latent_dist.sample()
+                    latents = vae.encode(pixel_values).latent_dist.sample()
                     latents = rearrange(
                         latents, "(b f) c h w -> b c f h w", f=video_length
                     )
@@ -779,19 +695,6 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
                     device=latents.device,
                 )
                 timesteps = timesteps.long()
-
-                # mask for face locator
-                pixel_values_mask = (
-                    batch["pixel_values_mask"].unsqueeze(
-                        1).to(dtype=weight_dtype)
-                )
-                pixel_values_mask = repeat(
-                    pixel_values_mask,
-                    "b f c h w -> b (repeat f) c h w",
-                    repeat=video_length,
-                )
-                pixel_values_mask = pixel_values_mask.transpose(
-                    1, 2)
 
                 uncond_img_fwd = random.random() < cfg.uncond_img_ratio
                 uncond_audio_fwd = random.random() < cfg.uncond_audio_ratio
@@ -840,12 +743,7 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
                     timesteps=timesteps,
                     ref_image_latents=ref_image_latents,
                     face_emb=image_prompt_embeds,
-                    mask=pixel_values_mask,
-                    full_mask=pixel_values_full_mask,
-                    face_mask=pixel_values_face_mask,
-                    lip_mask=pixel_values_lip_mask,
-                    audio_emb=batch["audio_tensor"].to(
-                        dtype=weight_dtype),
+                    audio_emb=batch["audio_emb"].to(dtype=weight_dtype),
                     uncond_img_fwd=uncond_img_fwd,
                     uncond_audio_fwd=uncond_audio_fwd,
                 )
@@ -901,25 +799,25 @@ def train_stage2_process(cfg: argparse.Namespace) -> None:
                 accelerator.log({"train_loss": train_loss}, step=global_step)
                 train_loss = 0.0
 
-                if global_step % cfg.val.validation_steps == 0 or global_step==1:
-                    if accelerator.is_main_process:
-                        generator = torch.Generator(device=accelerator.device)
-                        generator.manual_seed(cfg.seed)
+                # if global_step % cfg.val.validation_steps == 0 or global_step==1:
+                #     if accelerator.is_main_process:
+                #         generator = torch.Generator(device=accelerator.device)
+                #         generator.manual_seed(cfg.seed)
 
-                        log_validation(
-                            accelerator=accelerator,
-                            vae=vae,
-                            net=net,
-                            scheduler=val_noise_scheduler,
-                            width=cfg.data.train_width,
-                            height=cfg.data.train_height,
-                            clip_length=cfg.data.n_sample_frames,
-                            cfg=cfg,
-                            save_dir=validation_dir,
-                            global_step=global_step,
-                            times=cfg.single_inference_times if cfg.single_inference_times is not None else None,
-                            face_analysis_model_path=cfg.face_analysis_model_path
-                        )
+                #         log_validation(
+                #             accelerator=accelerator,
+                #             vae=vae,
+                #             net=net,
+                #             scheduler=val_noise_scheduler,
+                #             width=cfg.data.train_width,
+                #             height=cfg.data.train_height,
+                #             clip_length=cfg.data.n_sample_frames,
+                #             cfg=cfg,
+                #             save_dir=validation_dir,
+                #             global_step=global_step,
+                #             times=cfg.single_inference_times if cfg.single_inference_times is not None else None,
+                #             face_analysis_model_path=cfg.face_analysis_model_path
+                #         )
 
             logs = {
                 "step_loss": loss.detach().item(),
@@ -984,8 +882,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    try:
-        config = load_config(args.config)
-        train_stage2_process(config)
-    except Exception as e:
-        logging.error("Failed to execute the training process: %s", e)
+    config = load_config(args.config)
+    train(config)

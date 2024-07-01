@@ -3,21 +3,20 @@ data:
   val_bs: 1
   train_width: 512
   train_height: 512
-  fps: 25
   sample_rate: 16000
   n_motion_frames: 2
   n_sample_frames: 14
   audio_margin: 2
-  train_meta_paths:
-    - "./data/hdtf_split_stage2.json"
+  metadata_paths:
+    - /mnt/data/public/dataset/talking_head/embeddings/HDTF/metadata.jsonl
 
 wav2vec_config:
   audio_type: "vocals" # audio vocals
   model_scale: "base" # base large
   features: "all" # last avg all
-  model_path: ./pretrained_models/wav2vec/wav2vec2-base-960h
+  model_path: /mnt/data/longtaozheng/talking-head/pretrained_models/wav2vec/wav2vec2-base-960h
 audio_separator:
-  model_path: ./pretrained_models/audio_separator/Kim_Vocal_2.onnx
+  model_path: /mnt/data/longtaozheng/talking-head/pretrained_models/audio_separator/Kim_Vocal_2.onnx
 face_expand_ratio: 1.2
 
 solver:
@@ -115,5 +114,3 @@ ref_img_path:
   
 audio_path:
   - "examples/driving_audios/1.wav"
-
-
