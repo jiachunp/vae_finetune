@@ -10,9 +10,10 @@ pip install -e .
 apt-get install ffmpeg
 pip install ffmpeg-python
 
-# # for faster face & audio embedding
-# pip uninstall onnxruntime
-# pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/  # for cuda12
+# for faster face mask extraction & audio separator
+pip install onnxruntime-gpu
+pip install nvidia-cudnn-cu12  # cuda12
+pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/  # cuda12
 ```
 
 ## Download Datasets
@@ -263,13 +264,19 @@ Process the videos and generate metadata jsons:
 w/o audio separator:
 
 ```bash
-python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF
+python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF_raw_audio
 ```
 
 w/ audio separator:
 
 ```bash
-python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF --audio_separator_model_file pretrained_models/audio_separator/Kim_Vocal_2.onnx
+python scripts/process/prepare_audio_and_face_embeddings.py --input_dir /mnt/data/public/dataset/talking_head/video_datasets/HDTF --output_dir /mnt/data/public/dataset/talking_head/embeddings/HDTF --audio_separator_model_file /mnt/data/longtaozheng/talking-head/pretrained_models/audio_separator/Kim_Vocal_2.onnx
+```
+
+### VAE Training
+
+```bash
+bash scripts/train/train_vae.sh
 ```
 
 ### Video Training
