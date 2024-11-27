@@ -89,6 +89,18 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
         if use_audio_module:
             self.transformer_blocks = nn.ModuleList(
                 [
+                    # AudioTemporalBasicTransformerBlock(
+                    #     inner_dim,
+                    #     num_attention_heads,
+                    #     attention_head_dim,
+                    #     dropout=dropout,
+                    #     cross_attention_dim=cross_attention_dim,
+                    #     activation_fn=activation_fn,
+                    #     num_embeds_ada_norm=num_embeds_ada_norm,
+                    #     attention_bias=attention_bias,
+                    #     only_cross_attention=only_cross_attention,
+                    #     upcast_attention=upcast_attention,
+                    # )
                     AudioTemporalBasicTransformerBlock(
                         inner_dim,
                         num_attention_heads,
@@ -102,10 +114,10 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                         upcast_attention=upcast_attention,
                         unet_use_cross_frame_attention=unet_use_cross_frame_attention,
                         unet_use_temporal_attention=unet_use_temporal_attention,
-                        depth=depth,
-                        unet_block_name=unet_block_name,
-                        stack_enable_blocks_name=stack_enable_blocks_name,
-                        stack_enable_blocks_depth=stack_enable_blocks_depth,
+                        # depth=depth,
+                        # unet_block_name=unet_block_name,
+                        # stack_enable_blocks_name=stack_enable_blocks_name,
+                        # stack_enable_blocks_depth=stack_enable_blocks_depth,
                     )
                     for d in range(num_layers)
                 ]

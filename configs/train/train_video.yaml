@@ -1,5 +1,5 @@
 data:
-  train_bs: 4
+  train_bs: 8
   val_bs: 1
   train_width: 512
   train_height: 512
@@ -21,7 +21,7 @@ face_expand_ratio: 1.2
 
 solver:
   gradient_accumulation_steps: 1
-  mixed_precision: "no"
+  mixed_precision: "fp16"
   enable_xformers_memory_efficient_attention: True
   gradient_checkpointing: True
   max_train_steps: 30000
@@ -29,11 +29,11 @@ solver:
   # lr
   learning_rate: 1e-5
   scale_lr: False
-  lr_warmup_steps: 1
+  lr_warmup_steps: 0
   lr_scheduler: "constant"
 
   # optimizer
-  use_8bit_adam: True
+  use_8bit_adam: False
   adam_beta1: 0.9
   adam_beta2: 0.999
   adam_weight_decay: 1.0e-2

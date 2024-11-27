@@ -166,5 +166,27 @@ cython_debug/
 deprecated/
 examples/
 pretrained_models
+logs/
+video_finetune_outputs*
+wandb
+video_caption_pipeline
+exp_output*
+body_*                                                            
+nohup.out 
+joint_pose_train_*
+results*
+images
+vae_eval_out
 
 *.mp4
+*.png
+*.jpg
+*.wav
+*.gif
+*.pth
+
+
+*.pt
+*.pkl
+
+*.json

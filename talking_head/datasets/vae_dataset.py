@@ -23,11 +23,13 @@ class VideoDataset(Dataset):
         is_image=False,
         height=512,
         width=512,
-    ):
+    ): 
         self.data_dir = data_dir
         self.metadata = []
-        for metadata_path in metadata_paths:
+        #metadata_paths = [metadata_paths]
+        for metadata_path in metadata_paths: 
             for line in Path(metadata_path).read_text().splitlines():
+                #print("line", line)
                 self.metadata.append(json.loads(line))
         self.num_frames = num_frames
         self.sample_stride = sample_stride
@@ -35,7 +37,7 @@ class VideoDataset(Dataset):
             [
                 transforms.Resize((height, width), antialias=True),
                 transforms.CenterCrop((height, width)),
-                # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
             ]
         )
         self.is_image = is_image
@@ -45,8 +47,8 @@ class VideoDataset(Dataset):
 
     def __getitem__(self, idx):
         video_info = self.metadata[idx]
-        video_path = os.path.join(self.data_dir, video_info["video"])
-
+        video_path = os.path.join(self.data_dir, video_info["video"]) 
+        
         # audio_emb = sample["audio_emb"]
 
         try:
@@ -102,13 +104,14 @@ class VideoDataLoader(LightningDataModule):
             shuffle=self.shuffle,
             num_workers=self.num_workers,
             prefetch_factor=self.prefetch_factor,
+            persistent_workers=True,
         )
 
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
-            shuffle=self.shuffle,
+            shuffle=False,
             num_workers=self.num_workers,
             prefetch_factor=self.prefetch_factor,
         )

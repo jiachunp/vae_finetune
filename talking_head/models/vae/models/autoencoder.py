@@ -4,6 +4,8 @@ import re
 from abc import abstractmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple, Union
+import collections
+import numpy as np
 
 import pytorch_lightning as pl
 import torch
@@ -15,6 +17,7 @@ from ..modules.autoencoding.regularizers import AbstractRegularizer
 from ..modules.ema import LitEma
 from ..util import (default, get_nested_attribute, get_obj_from_str,
                     instantiate_from_config)
+from safetensors.torch import load_file as load_safetensors
 
 logpy = logging.getLogger(__name__)
 
@@ -49,11 +52,11 @@ class AbstractAutoencoder(pl.LightningModule):
     def apply_ckpt(self, ckpt: Union[None, str, dict]):
         if ckpt is None:
             return
-        if isinstance(ckpt, str):
-            ckpt = {
-                "target": "talking_head.models.vae.modules.checkpoint.CheckpointEngine",
-                "params": {"ckpt_path": ckpt},
-            }
+        # if isinstance(ckpt, str):
+        #     ckpt = {
+        #         "target": "talking_head.models.vae.modules.checkpoint.CheckpointEngine",
+        #         "params": {"ckpt_path": ckpt},
+        #     }
         engine = instantiate_from_config(ckpt)
         engine(self)
 
@@ -161,16 +164,166 @@ class AutoencodingEngine(AbstractAutoencoder):
         else:
             self.disc_optimizer_args = [{}]  # makes type consitent
 
+        # if ckpt_path is not None:
+        #     assert ckpt_engine is None, "Can't set ckpt_engine and ckpt_path"
+        #     logpy.warn("Checkpoint path is deprecated, use `checkpoint_egnine` instead")
+        # self.apply_ckpt(default(ckpt_path, ckpt_engine))
+
         if ckpt_path is not None:
-            assert ckpt_engine is None, "Can't set ckpt_engine and ckpt_path"
-            logpy.warn("Checkpoint path is deprecated, use `checkpoint_egnine` instead")
-        self.apply_ckpt(default(ckpt_path, ckpt_engine))
+            print('init_from_ckpt-----------------')
+            self.init_from_ckpt(ckpt_path)
         self.additional_decode_keys = set(default(additional_decode_keys, []))
 
-    def get_input(self, batch: Dict) -> torch.Tensor:
-        # assuming unified data format, dataloader returns a dict.
-        # image tensors should be scaled to -1 ... 1 and in channels-first
-        # format (e.g., bchw instead if bhwc)
+
+
+    def init_from_ckpt(
+            self,
+            path: str,
+    ) -> None:
+
+        # svd_path = '/TrainData/ai-story/dawei.liu/exps_zq/video_vae/ti2v/logs/2024-03-04T09-41-21_video_vae_convig-train_vae_down2_ddp/checkpoints/epoch=000002-v1.ckpt'
+        # "/TrainData/ai-story/dawei.liu/ti2v/checkpoints/svd.safetensors"
+        # print(svd_path)
+        # sd_svd = load_safetensors(svd_path)
+        # del sd_svd["model.diffusion_model.input_blocks.0.0.weight"]
+
+        #need_train_layers = set()
+
+        if path.endswith("ckpt") or path.endswith("pth"):
+            sd = torch.load(path, map_location="cpu")["state_dict"]
+        elif path.endswith("safetensors"):
+            sd = load_safetensors(path)
+        else:
+            raise NotImplementedError
+        
+
+
+        # cond_key = [key for key in sd.keys() if "cond_stage_model" in key]
+
+        # sd = ["model.diffusion_model"+key for key in sd.keys()]
+        if path.endswith('safetensors'): 
+            new_sd = collections.OrderedDict()
+            for k, v in sd.items():
+                new_k = k.replace('down_blocks.0.resnets.0.', 'down.0.block.0.')
+                new_k = new_k.replace('down_blocks.0.resnets.1.', 'down.0.block.1.')
+                new_k = new_k.replace('down_blocks.0.downsamplers.0.', 'down.0.downsample.')
+                new_k = new_k.replace('down_blocks.1.resnets.0.', 'down.1.block.0.')
+                new_k = new_k.replace('down_blocks.1.resnets.1.', 'down.1.block.1.')
+                new_k = new_k.replace('down_blocks.1.downsamplers.0.', 'down.1.downsample.')
+                new_k = new_k.replace('down_blocks.2.resnets.0.', 'down.2.block.0.')
+                new_k = new_k.replace('down_blocks.2.resnets.1.', 'down.2.block.1.')
+                new_k = new_k.replace('down_blocks.2.downsamplers.0.', 'down.2.downsample.')
+                new_k = new_k.replace('down_blocks.3.resnets.0.', 'down.3.block.0.')
+                new_k = new_k.replace('down_blocks.3.resnets.1.', 'down.3.block.1.')
+ 
+                new_k = new_k.replace('mid_block.resnets.0.', 'mid.block_1.')
+                new_k = new_k.replace('mid_block.resnets.1.', 'mid.block_2.')
+                new_k = new_k.replace('mid_block.attentions.0.', 'mid.attn_1.')
+                new_k = new_k.replace('to_q.', 'q.')
+                new_k = new_k.replace('to_k.', 'k.') 
+                new_k = new_k.replace('to_v.', 'v.')
+                new_k = new_k.replace('to_out.0.', 'proj_out.')
+                new_k = new_k.replace('group_norm.', 'norm.')
+                new_k = new_k.replace('conv_norm_out.', 'norm_out.')
+
+                new_k = new_k.replace('up_blocks.0.resnets.0.', 'up.3.block.0.')
+                new_k = new_k.replace('up_blocks.0.resnets.1.', 'up.3.block.1.')
+                new_k = new_k.replace('up_blocks.0.resnets.2.', 'up.3.block.2.')
+                new_k = new_k.replace('up_blocks.0.upsamplers.0.', 'up.3.upsample.')
+                new_k = new_k.replace('up_blocks.1.resnets.0.', 'up.2.block.0.')
+                new_k = new_k.replace('up_blocks.1.resnets.1.', 'up.2.block.1.')
+                new_k = new_k.replace('up_blocks.1.resnets.2.', 'up.2.block.2.')
+                new_k = new_k.replace('up_blocks.1.upsamplers.0.', 'up.2.upsample.')
+                new_k = new_k.replace('up_blocks.2.resnets.0.', 'up.1.block.0.')
+                new_k = new_k.replace('up_blocks.2.resnets.1.', 'up.1.block.1.')
+                new_k = new_k.replace('up_blocks.2.resnets.2.', 'up.1.block.2.')
+                new_k = new_k.replace('up_blocks.2.upsamplers.0.', 'up.1.upsample.')
+                new_k = new_k.replace('up_blocks.3.resnets.0.', 'up.0.block.0.')
+                new_k = new_k.replace('up_blocks.3.resnets.1.', 'up.0.block.1.')
+                new_k = new_k.replace('up_blocks.3.resnets.2.', 'up.0.block.2.')
+ 
+                new_k = new_k.replace('conv_shortcut', 'nin_shortcut') 
+                 
+                if "attn_1.q.weight" in new_k or  "attn_1.k.weight" in new_k or  "attn_1.v.weight" in new_k or  "proj_out.weight" in new_k:
+                    v = v.unsqueeze(-1)
+                    v = v.unsqueeze(-1) 
+                new_sd[new_k] = v
+        else:
+            new_sd = sd
+
+        #time_stack_layers = []
+        self_state_dict = self.state_dict()
+        # for k, v in self_state_dict.items():
+        #     print(f"new_vae_state_dict, {k}")
+        """
+        for self_key in self_state_dict:
+            if ('time_stack' in self_key and 'encoder' in self_key) or (
+                    'mix_factor' in self_key and 'encoder' in self_key):
+                v = self_state_dict[self_key]
+
+            if len(v.shape) >= 3:
+                nn.init.dirac_(v, groups=1)
+                print(' v = self_state_dict[self_key]', v)
+
+                if self_key not in new_sd:
+                    new_sd[self_key] = v
+                #time_stack_layers.append(self_key)
+        """
+        missing, unexpected = self.load_state_dict(new_sd, strict=False)
+ 
+        print(
+            f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+
+        if len(missing) > 0:
+            print(f"Missing Keys: {missing}")
+        if len(unexpected) > 0:
+            print(f"Unexpected Keys: {unexpected}")
+
+        #print('time_stack_layers num', len(time_stack_layers))
+
+        # if self.is_freeze2d:
+
+        #     cnt = 0
+        #     cnt2 = 0
+        #     for key, val in self.named_parameters():
+        #         # if "model." + key in freeze_keys:
+
+        #         if key in time_stack_layers:
+        #             cnt2 += 1
+        #             val.requires_grad = True
+        #             print('time_stack_layers requires_grad', key)
+
+        #         elif 'decoder.conv_out' in key:
+        #             cnt2 += 1
+        #             val.requires_grad = True
+        #             print('decoder.conv_out requires_grad', key)
+
+        #         elif 'loss.discriminator' in key:
+        #             cnt2 += 1
+        #             val.requires_grad = True
+        #             print('loss.discriminator requires_grad', key)
+
+
+        #         elif key not in missing:
+        #             cnt += 1
+        #             val.requires_grad = False
+        #             print('freeze key', key)
+
+
+        #         else:
+        #             cnt2 += 1
+        #             val.requires_grad = True
+        #             print('finetune key', key)
+
+        #     print('freeze key num', cnt)
+        #     print('finetune missing', cnt2)
+
+    def get_input(self, batch: Dict) -> torch.Tensor: 
+        print("batch[self.input_key]", batch[self.input_key].shape)  # b t c h w
+        if batch[self.input_key].ndim == 5: 
+            batch["num_video_frames"] = int(batch[self.input_key].shape[1])
+            batch[self.input_key] = rearrange(batch[self.input_key], "b t c h w -> (b t) c h w")
+        
         return batch[self.input_key]
 
     def get_autoencoder_params(self) -> list:
@@ -225,6 +378,7 @@ class AutoencodingEngine(AbstractAutoencoder):
         additional_decode_kwargs = {
             key: batch[key] for key in self.additional_decode_keys.intersection(batch)
         }
+        additional_decode_kwargs["num_video_frames"] = batch["num_video_frames"]
         z, xrec, regularization_log = self(x, **additional_decode_kwargs)
         if hasattr(self.loss, "forward_keys"):
             extra_info = {
@@ -261,10 +415,58 @@ class AutoencodingEngine(AbstractAutoencoder):
             self.log(
                 "loss",
                 aeloss.mean().detach(),
+                prog_bar=False,
+                logger=False,
+                on_epoch=True,
+                on_step=False,
+                sync_dist=True,  # 确保在分布式环境中同步日志
+            )
+            self.log(
+                "nll",
+                log_dict_ae["train/loss/nll"],
                 prog_bar=True,
                 logger=False,
                 on_epoch=False,
                 on_step=True,
+                sync_dist=True,  # 确保在分布式环境中同步日志
+            )
+
+            self.log(
+                "p_loss",
+                log_dict_ae["train/loss/p_loss"],
+                prog_bar=True,
+                logger=False,
+                on_epoch=False,
+                on_step=True,
+                sync_dist=True,  # 确保在分布式环境中同步日志
+            )
+
+            self.log(
+                "rec",
+                log_dict_ae["train/loss/rec"],
+                prog_bar=True,
+                logger=False,
+                on_epoch=False,
+                on_step=True,
+                sync_dist=True,  # 确保在分布式环境中同步日志
+            )
+            self.log(
+                "g_loss",
+                log_dict_ae["train/loss/g"],
+                prog_bar=True,
+                logger=False,
+                on_epoch=False,
+                on_step=True,
+                sync_dist=True,  # 确保在分布式环境中同步日志
+            )
+            self.log(
+                "logvar",
+                log_dict_ae["train/scalars/logvar"],
+                prog_bar=True,
+                logger=False,
+                on_epoch=False,
+                on_step=True,
+                sync_dist=True,  # 确保在分布式环境中同步日志
             )
             return aeloss
         elif optimizer_idx == 1:
@@ -274,6 +476,22 @@ class AutoencodingEngine(AbstractAutoencoder):
             self.log_dict(
                 log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True
             )
+            # self.log(
+            #     "real",
+            #     log_dict_disc["train/logits/real"],
+            #     prog_bar=True,
+            #     logger=False,
+            #     on_epoch=False,
+            #     on_step=False,
+            # )
+            # self.log(
+            #     "fake",
+            #     log_dict_disc["train/logits/fake"],
+            #     prog_bar=True,
+            #     logger=False,
+            #     on_epoch=False,
+            #     on_step=False,
+            # )
             return discloss
         else:
             raise NotImplementedError(f"Unknown optimizer {optimizer_idx}")
@@ -293,6 +511,8 @@ class AutoencodingEngine(AbstractAutoencoder):
                 batch, batch_idx, optimizer_idx=optimizer_idx
             )
             self.manual_backward(loss)
+        
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0) 
         opt.step()
 
     def validation_step(self, batch: dict, batch_idx: int) -> Dict:
@@ -340,6 +560,8 @@ class AutoencodingEngine(AbstractAutoencoder):
         self.log_dict(full_log_dict, sync_dist=True)
         return full_log_dict
 
+    
+    
     def get_param_groups(
         self, parameter_names: List[List[str]], optimizer_args: List[dict]
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -405,25 +627,25 @@ class AutoencodingEngine(AbstractAutoencoder):
         _, xrec, _ = self(x, **additional_decode_kwargs)
         log["inputs"] = x
         log["reconstructions"] = xrec
-        diff = 0.5 * torch.abs(torch.clamp(xrec, -1.0, 1.0) - x)
-        diff.clamp_(0, 1.0)
-        log["diff"] = 2.0 * diff - 1.0
-        # diff_boost shows location of small errors, by boosting their
-        # brightness.
-        log["diff_boost"] = (
-            2.0 * torch.clamp(self.diff_boost_factor * diff, 0.0, 1.0) - 1
-        )
+        # diff = 0.5 * torch.abs(torch.clamp(xrec, -1.0, 1.0) - x)
+        # diff.clamp_(0, 1.0)
+        # log["diff"] = 2.0 * diff - 1.0
+        # # diff_boost shows location of small errors, by boosting their
+        # # brightness.
+        # log["diff_boost"] = (
+        #     2.0 * torch.clamp(self.diff_boost_factor * diff, 0.0, 1.0) - 1
+        # )
         if hasattr(self.loss, "log_images"):
             log.update(self.loss.log_images(x, xrec))
         with self.ema_scope():
             _, xrec_ema, _ = self(x, **additional_decode_kwargs)
             log["reconstructions_ema"] = xrec_ema
-            diff_ema = 0.5 * torch.abs(torch.clamp(xrec_ema, -1.0, 1.0) - x)
-            diff_ema.clamp_(0, 1.0)
-            log["diff_ema"] = 2.0 * diff_ema - 1.0
-            log["diff_boost_ema"] = (
-                2.0 * torch.clamp(self.diff_boost_factor * diff_ema, 0.0, 1.0) - 1
-            )
+            # diff_ema = 0.5 * torch.abs(torch.clamp(xrec_ema, -1.0, 1.0) - x)
+            # diff_ema.clamp_(0, 1.0)
+            # log["diff_ema"] = 2.0 * diff_ema - 1.0
+            # log["diff_boost_ema"] = (
+            #     2.0 * torch.clamp(self.diff_boost_factor * diff_ema, 0.0, 1.0) - 1
+            # )
         if additional_log_kwargs:
             additional_decode_kwargs.update(additional_log_kwargs)
             _, xrec_add, _ = self(x, **additional_decode_kwargs)
@@ -437,29 +659,24 @@ class AutoencodingEngine(AbstractAutoencoder):
 class AutoencodingEngineLegacy(AutoencodingEngine):
     def __init__(self, embed_dim: int, **kwargs):
         self.max_batch_size = kwargs.pop("max_batch_size", None)
-        ddconfig = kwargs.pop("ddconfig")
+        
         ckpt_path = kwargs.pop("ckpt_path", None)
         ckpt_engine = kwargs.pop("ckpt_engine", None)
         super().__init__(
-            encoder_config={
-                "target": "talking_head.models.vae.modules.diffusionmodules.model.Encoder",
-                "params": ddconfig,
-            },
-            decoder_config={
-                "target": "talking_head.models.vae.modules.diffusionmodules.model.Decoder",
-                "params": ddconfig,
-            },
             **kwargs,
         )
         self.quant_conv = torch.nn.Conv2d(
-            (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
-            (1 + ddconfig["double_z"]) * embed_dim,
+            (1 + 1) * 4,
+            (1 + 1) * embed_dim,
             1,
         )
-        self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+        self.post_quant_conv = torch.nn.Conv2d(embed_dim, 4, 1)
         self.embed_dim = embed_dim
 
-        self.apply_ckpt(default(ckpt_path, ckpt_engine))
+        #self.apply_ckpt(default(ckpt_path, ckpt_engine))\
+        if ckpt_path is not None:
+            print('init_from_ckpt-----------------')
+            self.init_from_ckpt(ckpt_path)
 
     def get_autoencoder_params(self) -> list:
         params = super().get_autoencoder_params()
@@ -510,12 +727,12 @@ class AutoencoderKL(AutoencodingEngineLegacy):
         if "lossconfig" in kwargs:
             kwargs["loss_config"] = kwargs.pop("lossconfig")
         super().__init__(
-            regularizer_config={
-                "target": (
-                    "talking_head.models.vae.modules.autoencoding.regularizers"
-                    ".DiagonalGaussianRegularizer"
-                )
-            },
+            # regularizer_config={
+            #     "target": (
+            #         "talking_head.models.vae.modules.autoencoding.regularizers"
+            #         ".DiagonalGaussianRegularizer"
+            #     )
+            # },
             **kwargs,
         )
 

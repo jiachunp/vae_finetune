@@ -16,9 +16,9 @@ def list_files_in_folder(folder_path):
     df = pd.DataFrame(file_paths, columns=['videoid'])
     
     # Save to CSV
-    csv_path = "/mnt/data/public/dataset/talking_head/video_datasets/metadata.csv"
+    csv_path = "/mnt/data/public/dataset/talking_head/vae_csv/celebv_metadata.csv"
     df.to_csv(csv_path, index=False)
-    print(f"CSV file saved to: {csv_path}")
+    print(f"CSV file saved to: {csv_path}") 
 
     # Output the number of rows in the CSV file
     num_rows = df.shape[0]
@@ -26,5 +26,5 @@ def list_files_in_folder(folder_path):
 
 
 # Example usage
-folder_path = '/mnt/data/public/dataset/talking_head/video_datasets'
+folder_path = '/mnt/data/public/dataset/talking_head/video_datasets/CelebV-HQ'
 list_files_in_folder(folder_path)

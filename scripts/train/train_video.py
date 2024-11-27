@@ -8,9 +8,8 @@ import time
 import warnings
 from datetime import datetime
 from typing import List, Tuple
-
+import wandb
 import diffusers
-import mlflow
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
@@ -32,7 +31,7 @@ from tqdm.auto import tqdm
 # from talking_head.datasets.image_processor import ImageProcessor
 from talking_head.datasets.video_dataset import VideoDataset
 from talking_head.models.audio_proj import AudioProjModel
-from talking_head.models.face_locator import FaceLocator
+# from talking_head.models.face_locator import FaceLocator
 from talking_head.models.image_proj import ImageProjModel
 from talking_head.models.mutual_self_attention import ReferenceAttentionControl
 from talking_head.models.unet_2d_condition import UNet2DConditionModel
@@ -401,7 +400,7 @@ def train(cfg: argparse.Namespace) -> None:
     accelerator = Accelerator(
         gradient_accumulation_steps=cfg.solver.gradient_accumulation_steps,
         mixed_precision=cfg.solver.mixed_precision,
-        log_with="mlflow",
+        log_with="wandb",
         project_dir="./mlruns",
         kwargs_handlers=[kwargs],
     )
@@ -611,15 +610,8 @@ def train(cfg: argparse.Namespace) -> None:
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
         run_time = datetime.now().strftime("%Y%m%d-%H%M")
-        accelerator.init_trackers(
-            exp_name,
-            init_kwargs={"mlflow": {"run_name": run_time}},
-        )
-        # dump config file
-        mlflow.log_dict(
-            OmegaConf.to_container(
-                cfg), "config.yaml"
-        )
+        tracker_config = OmegaConf.to_container(cfg, resolve=True)
+        accelerator.init_trackers(run_time, tracker_config)
         logger.info(f"save config to {save_dir}")
         OmegaConf.save(
             cfg, os.path.join(save_dir, "config.yaml")
@@ -659,8 +651,9 @@ def train(cfg: argparse.Namespace) -> None:
     )
     progress_bar.set_description("Steps")
 
-    for _ in range(first_epoch, num_train_epochs):
+    for epoch in range(first_epoch, num_train_epochs):
         train_loss = 0.0
+        accelerator.log({"epoch": epoch}, step=global_step)
         t_data_start = time.time()
         for _, batch in enumerate(train_dataloader):
             t_data = time.time() - t_data_start

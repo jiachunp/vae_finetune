@@ -1,6 +1,5 @@
 import os
 import librosa
-import math
 import numpy as np
 import torch
 import soundfile as sf
@@ -52,19 +51,18 @@ class AudioProcessor:
                 y = np.tile(speech_array, (2, 1)).T
             # save the audio as wav
             raw_audio_path = self.output_dir / "vocal" / f"{input_path.stem}-raw.wav"
-            sf.write(raw_audio_path, speech_array, sr)
+            sf.write(raw_audio_path, y, sr)
             # separate vocal from audio
             outputs = self.audio_separator.separate(raw_audio_path)
             print(f"outputs: {outputs}")
             if len(outputs) <= 0:
                 print("Audio separate failed. Using raw audio.")
             else:
-                pass
-                # # resample the vocal to the desired sample rate
-                # vocal_path = self.output_dir / "vocal" / f"{input_path.stem}-16k.wav"
-                # y, sr = librosa.load(str(input_audio_file), sr=None)
-                # y_resampled = librosa.resample(y, orig_sr=sr, target_sr=self.sample_rate)
-                # speech_array = y_resampled
+                # resample the vocal to the desired sample rate
+                vocal_path = self.output_dir / "vocal" / f"{input_path.stem}-16k.wav"
+                y, sr = librosa.load(str(input_audio_file), sr=None)
+                y_resampled = librosa.resample(y, orig_sr=sr, target_sr=self.sample_rate)
+                speech_array = y_resampled
         
         audio_feature = np.squeeze(self.wav2vec_feature_extractor(speech_array, sampling_rate=self.sample_rate).input_values)
         audio_feature = torch.from_numpy(audio_feature).float().to(device=self.device)

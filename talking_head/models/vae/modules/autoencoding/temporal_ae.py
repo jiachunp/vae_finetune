@@ -59,7 +59,8 @@ class VideoResBlock(ResnetBlock):
         else:
             raise NotImplementedError()
 
-    def forward(self, x, temb, skip_video=False, timesteps=None):
+    def forward(self, x, temb, skip_video=False, timesteps=None): 
+
         if timesteps is None:
             timesteps = self.timesteps
 

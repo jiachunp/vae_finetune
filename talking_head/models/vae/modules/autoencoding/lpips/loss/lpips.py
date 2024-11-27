@@ -32,6 +32,26 @@ class LPIPS(nn.Module):
         )
         print("loaded pretrained LPIPS loss from {}".format(ckpt))
 
+        # Traceback (most recent call last):
+        #   File "/mnt/workspace/yifanzhang/talking-head/train_vae.py", line 662, in <module>
+        #     model = instantiate_from_config(config.model)
+        #   File "/mnt/workspace/yifanzhang/talking-head/talking_head/models/vae/util.py", line 188, in instantiate_from_config
+        #     return get_obj_from_str(config["target"])(**config.get("params", dict()))
+        #   File "/mnt/workspace/yifanzhang/talking-head/talking_head/models/vae/models/autoencoder.py", line 137, in __init__
+        #     self.loss: torch.nn.Module = instantiate_from_config(loss_config)
+        #   File "/mnt/workspace/yifanzhang/talking-head/talking_head/models/vae/util.py", line 188, in instantiate_from_config
+        #     return get_obj_from_str(config["target"])(**config.get("params", dict()))
+        #   File "/mnt/workspace/yifanzhang/talking-head/talking_head/models/vae/modules/autoencoding/losses/discriminator_loss.py", line 45, in __init__
+        #     self.perceptual_loss = LPIPS().eval()
+        #   File "/mnt/workspace/yifanzhang/talking-head/talking_head/models/vae/modules/autoencoding/lpips/loss/lpips.py", line 24, in __init__
+        #     self.load_from_pretrained()
+        #   File "/mnt/workspace/yifanzhang/talking-head/talking_head/models/vae/modules/autoencoding/lpips/loss/lpips.py", line 30, in load_from_pretrained
+        #     self.load_state_dict(
+        #   File "/opt/conda/envs/hipa/lib/python3.10/site-packages/torch/nn/modules/module.py", line 2152, in load_state_dict
+        #     raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
+        # RuntimeError: Error(s) in loading state_dict for LPIPS:
+        # 	Missing key(s) in state_dict: "scaling_layer.shift", "scaling_layer.scale", "net.slice1.0.weight", "net.slice1.0.bias", "net.slice1.2.weight", "net.slice1.2.bias", "net.slice2.5.weight", "net.slice2.5.bias", "net.slice2.7.weight", "net.slice2.7.bias", "net.slice3.10.weight", "net.slice3.10.bias", "net.slice3.12.weight", "net.slice3.12.bias", "net.slice3.14.weight", "net.slice3.14.bias", "net.slice4.17.weight", "net.slice4.17.bias", "net.slice4.19.weight", "net.slice4.19.bias", "net.slice4.21.weight", "net.slice4.21.bias", "net.slice5.24.weight", "net.slice5.24.bias", "net.slice5.26.weight", "net.slice5.26.bias", "net.slice5.28.weight", "net.slice5.28.bias". 
+
     @classmethod
     def from_pretrained(cls, name="vgg_lpips"):
         if name != "vgg_lpips":
@@ -118,8 +138,7 @@ class vgg16(torch.nn.Module):
             self.slice5.add_module(str(x), vgg_pretrained_features[x])
         if not requires_grad:
             for param in self.parameters():
-                param.requires_grad = False
-
+                param.requires_grad = False 
     def forward(self, X):
         h = self.slice1(X)
         h_relu1_2 = h
@@ -138,7 +157,7 @@ class vgg16(torch.nn.Module):
         return out
 
 
-def normalize_tensor(x, eps=1e-10):
+def normalize_tensor(x, eps=1e-10): 
     norm_factor = torch.sqrt(torch.sum(x**2, dim=1, keepdim=True))
     return x / (norm_factor + eps)
 

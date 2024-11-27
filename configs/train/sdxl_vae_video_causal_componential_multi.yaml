@@ -1,0 +1,121 @@
+BatchSize: &BatchSize 1
+NumGPU: &NumGPU 8
+NumNodes: &NumNodes 1
+CkptPath: &CkptPath /mnt/data/yifanzhang/talking-head/model/sdxl_vae.safetensors
+model:
+  base_learning_rate: 5e-5
+  target: talking_head.models.vae.models.autoencoder_temporal_decoder.AutoencoderKL
+  params:
+    input_key: pixel_values
+    ckpt_path: *CkptPath 
+    disc_start_iter: 0
+    embed_dim: 4 
+
+    encoder_config:
+      target: talking_head.models.vae.modules.diffusionmodules.model.Encoder
+      params:
+        attn_type: vanilla-xformers
+        double_z: true
+        z_channels: 4
+        resolution: 512
+        in_channels: 3
+        out_ch: 3
+        ch: 128
+        ch_mult: [1, 2, 4, 4]
+        num_res_blocks: 2
+        attn_resolutions: []
+        dropout: 0.0
+
+    decoder_config:
+      target: talking_head.models.vae.modules.diffusionmodules.model.CausalVideoDecoder
+      params:
+        attn_type: vanilla-xformers
+        double_z: true
+        z_channels: 4
+        resolution: 512
+        in_channels: 3
+        out_ch: 3
+        ch: 128
+        ch_mult: [1, 2, 4, 4]
+        num_res_blocks: 2
+        attn_resolutions: []
+        dropout: 0.0
+
+    regularizer_config:
+      target: talking_head.models.vae.modules.autoencoding.regularizers.DiagonalGaussianRegularizer
+
+    loss_config:
+      target: talking_head.models.vae.modules.autoencoding.losses.GeneralLPIPSWithDiscriminatorComponentConsistency
+      params:
+        perceptual_weight: 0.25
+        consistency_weight: 0.5
+        disc_start: 0
+        disc_weight: 0.5
+        learn_logvar: True 
+        batch_size: *BatchSize
+
+        regularization_weights:
+          kl_loss: 1.0
+
+data:
+  target: talking_head.datasets.vae_dataset_v2.VideoDataLoader
+  params:
+    batch_size: *BatchSize
+    num_workers: 4
+    prefetch_factor: 2
+    shuffle: true
+    train_config:
+      target: talking_head.datasets.vae_dataset_v2.VideoDataset
+      params:
+        data_dir: /mnt/data/public/dataset/talking_head/video_datasets
+        metadata_paths:
+          - /mnt/data/public/dataset/talking_head/vae_csv/hdtf_metadata.csv
+          - /mnt/data/public/dataset/talking_head/vae_csv/vfhq_train_metadata.csv 
+          - /mnt/data/public/dataset/talking_head/vae_csv/celebv_hq_metadata.csv
+          - /mnt/data/public/dataset/talking_head/vae_csv/ravdess_song_metadata.csv
+          #- /mnt/data/public/dataset/talking_head/vae_csv/talkinghead_1kh_metadata.csv
+          #- /mnt/data/public/dataset/talking_head/vae_csv/vox2_metadata.csv
+        is_image: false
+        num_frames: 9
+    validation_config:
+      target: talking_head.datasets.vae_dataset_v2.VideoDataset
+      params:
+        data_dir: /mnt/data/public/dataset/talking_head/video_datasets
+        metadata_paths:
+          - /mnt/data/public/dataset/talking_head/vae_csv/vfhq_val_metadata.csv
+        is_image: false
+        num_frames: 14
+
+lightning:
+  strategy:
+    target: pytorch_lightning.strategies.DDPStrategy
+    params:
+      find_unused_parameters: True
+
+  modelcheckpoint:
+    params:
+      every_n_train_steps: 5000
+
+  callbacks:
+    metrics_over_trainsteps_checkpoint:
+      params:
+        every_n_train_steps: 50000
+
+    image_logger:
+      target: talking_head.models.vae.util.ImageLogger
+      params:
+        enable_autocast: False
+        batch_frequency: 1000
+        max_images: 8
+        increase_log_steps: True
+
+  trainer:
+    precision: 'bf16-mixed'
+    devices: *NumGPU
+    num_nodes: *NumNodes  
+    benchmark: True
+    check_val_every_n_epoch: 1
+    # accumulate_grad_batches: 1
+    # limit_val_batches: 0
+    max_epochs: 1000
+ 

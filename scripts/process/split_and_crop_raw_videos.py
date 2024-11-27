@@ -43,6 +43,14 @@ def split_video_to_1min_clips(input_video_path, output_video_path):
     return output_video_path
 
 
+def split_video_to_30s_clips(input_video_path, output_video_path):
+    input_stream = ffmpeg.input(input_video_path)
+    output = ffmpeg.output(input_stream, output_video_path, c='copy', map='0', segment_time='00:00:30', loglevel='error', f='segment')
+    ffmpeg.run(output, overwrite_output=True)
+
+    return output_video_path
+
+
 def split_and_crop_video_to_multiple_clips(input_video_path, output_video_paths, start_frames, end_frames, xs, ys, widths, heights):
     probe = ffmpeg.probe(input_video_path)
     video_info = next(stream for stream in probe['streams'] if stream['codec_type'] == 'video')
@@ -144,7 +152,7 @@ def main(args):
 
                 video_data.append((input_video_path, output_video_path, start_sec, end_sec, left, top, right - left, bottom - top))
 
-    elif args.dataset == "talkinghead1kh-split":
+    elif args.dataset in ["hdtf", "talkinghead1kh-split"]:
         # Iterate over each mp4 file in the input directory
         for filename in os.listdir(input_video_root):
             if filename.endswith(".mp4"):
@@ -204,6 +212,8 @@ def main(args):
     with ThreadPoolExecutor() as executor:
         if args.dataset == "talkinghead1kh-split":
             futures = [executor.submit(split_video_to_1min_clips, *args) for args in video_data]
+        elif args.dataset == "hdtf":
+            futures = [executor.submit(split_video_to_30s_clips, *args) for args in video_data]
         elif args.dataset == "talkinghead1kh":
             futures = [executor.submit(split_and_crop_video_to_multiple_clips, *args) for args in video_data]
         else:
@@ -220,7 +230,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, choices=["celebvhq", "vfhq", "talkinghead1kh-split", "talkinghead1kh"])
+    parser.add_argument('--dataset', type=str, choices=["hdtf", "celebvhq", "vfhq", "talkinghead1kh-split", "talkinghead1kh"])
     parser.add_argument('--metadata_path', type=str, default=None)
     parser.add_argument('--input_video_root', type=str)
     parser.add_argument('--output_video_root', type=str)

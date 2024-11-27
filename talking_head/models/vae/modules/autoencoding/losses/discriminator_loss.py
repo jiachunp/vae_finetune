@@ -266,6 +266,7 @@ class GeneralLPIPSWithDiscriminator(nn.Module):
                     f"{split}/loss/nll": nll_loss.detach().mean(),
                     f"{split}/loss/rec": rec_loss.detach().mean(),
                     f"{split}/loss/g": g_loss.detach().mean(),
+                    f"{split}/loss/p_loss": p_loss.clone().detach().mean(),
                     f"{split}/scalars/logvar": self.logvar.detach(),
                     f"{split}/scalars/d_weight": d_weight.detach(),
                 }
